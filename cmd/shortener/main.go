@@ -51,6 +51,7 @@ func mainPage(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 		shortURL := shorten()
+		res.WriteHeader(http.StatusCreated)
 		res.Write([]byte(shortURL))
 		return
 	}
@@ -60,9 +61,6 @@ func mainPage(res http.ResponseWriter, req *http.Request) {
 	}
 	res.WriteHeader(http.StatusTemporaryRedirect)
 	res.Write([]byte("https://practicum.yandex.ru/"))
-
-	return
-
 }
 
 //func encrypt - /: POST        curl -v -X POST 'https://practicum.yandex.ru/ '
