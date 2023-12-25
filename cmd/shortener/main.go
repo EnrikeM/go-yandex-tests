@@ -2,14 +2,15 @@
 package main
 
 import (
+	"io"
 	"math/rand"
 	"net/http"
 	"strings"
 	"time"
 )
 
-// функция main вызывается автоматически при запуске приложения
 func main() {
+
 	if err := run(); err != nil {
 		panic(err)
 	}
@@ -20,7 +21,9 @@ var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 const shortenerlen = 7
 
-// функция shortenet - создаёт рандомную ссылку.
+var Urls = map[string]string{}
+
+// функция shorten - создаёт рандомную ссылку.
 func shorten() string {
 	rand.New(rand.NewSource((time.Now().UnixNano())))
 	b := make([]rune, shortenerlen)
@@ -32,11 +35,16 @@ func shorten() string {
 
 // функция run будет полезна при инициализации зависимостей сервера перед запуском
 func run() error {
+
 	http.HandleFunc(`/`, mainPage)
 	return http.ListenAndServe(`:8080`, http.HandlerFunc(mainPage))
 }
 
 func mainPage(res http.ResponseWriter, req *http.Request) {
+
+	//Читаем содержимое запроса
+
+	// Создаём мапу, в которой будем хранить пару: длинная ссылка: короткая ссылка
 
 	p := strings.Split(req.URL.Path, "/") // ["", ""]
 
@@ -50,18 +58,41 @@ func mainPage(res http.ResponseWriter, req *http.Request) {
 			res.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			http.Error(res, err.Error(), 500)
+			return
+		}
+		bodystr := string(body)
 		shortURL := shorten()
+
+		//присваиваем длинной ссылку короткую
+		Urls[shortURL] = bodystr
+
+		if err := req.ParseForm(); err != nil {
+			res.Write([]byte(err.Error()))
+			return
+		}
+
 		res.WriteHeader(http.StatusCreated)
 		res.Write([]byte(shortURL))
 		return
 	}
+
 	if req.Method != http.MethodGet {
 		res.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+
 	res.WriteHeader(http.StatusTemporaryRedirect)
-	res.Write([]byte("https://practicum.yandex.ru/"))
+	res.Write([]byte(Urls[p[len(p)-1]]))
+
 }
+
+//Что осталось - сохранить то, что передаём в POST в переменную, чтобы потом отдать
+// Мб тут нужно создать мапу: при пост запросе сохраняем длинную ссылку как ключ и значение как короткую
+// При гет запросе по значению маленькой ссылки (значения) выдать длинную (ключ)
 
 //func encrypt - /: POST        curl -v -X POST 'https://practicum.yandex.ru/ '
 //func decrypt - /{id}: GET
