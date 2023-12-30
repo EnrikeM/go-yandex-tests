@@ -1,98 +1,23 @@
-// пакеты исполняемых приложений должны называться main
 package main
 
 import (
-	"io"
-	"math/rand"
+	"fmt"
 	"net/http"
-	"strings"
-	"time"
+	"os"
+
+	"github.com/EnrikeM/go-yandex-tests/internal/app/handlers"
+	storage "github.com/EnrikeM/go-yandex-tests/internal/storage"
+	"github.com/EnrikeM/go-yandex-tests/internal/storage/common"
+	"github.com/EnrikeM/go-yandex-tests/internal/storage/inmem"
 )
 
 func main() {
+	im := common.Storage(inmem.New())
+	storage.SetUsed(&im)
 
-	if err := run(); err != nil {
-		panic(err)
+	http.HandleFunc(handlers.ShortenPath, handlers.HandlerFunc)
+	if err := http.ListenAndServe(":8080", http.HandlerFunc(handlers.HandlerFunc)); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
-
 }
-
-var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-const shortenerlen = 7
-
-var Urls = map[string]string{}
-
-// функция shorten - создаёт рандомную ссылку.
-func shorten() string {
-	rand.New(rand.NewSource((time.Now().UnixNano())))
-	b := make([]rune, shortenerlen)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(b)
-}
-
-// функция run будет полезна при инициализации зависимостей сервера перед запуском
-func run() error {
-
-	http.HandleFunc(`/`, mainPage)
-	return http.ListenAndServe(`:8080`, http.HandlerFunc(mainPage))
-}
-
-func mainPage(res http.ResponseWriter, req *http.Request) {
-
-	//Читаем содержимое запроса
-
-	// Создаём мапу, в которой будем хранить пару: длинная ссылка: короткая ссылка
-
-	p := strings.Split(req.URL.Path, "/") // ["", ""]
-
-	if len(p) > 2 {
-		res.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	if len(p[len(p)-1]) == 0 {
-		if req.Method != http.MethodPost {
-			res.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-
-		body, err := io.ReadAll(req.Body)
-		if err != nil {
-			http.Error(res, err.Error(), 500)
-			return
-		}
-		bodystr := string(body)
-		shortURL := shorten()
-
-		//присваиваем длинной ссылку короткую
-		Urls[shortURL] = bodystr
-
-		if err := req.ParseForm(); err != nil {
-			res.Write([]byte(err.Error()))
-			return
-		}
-
-		res.WriteHeader(http.StatusCreated)
-		res.Write([]byte(shortURL))
-		return
-	}
-
-	if req.Method != http.MethodGet {
-		res.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
-	res.WriteHeader(http.StatusTemporaryRedirect)
-	res.Write([]byte(Urls[p[len(p)-1]]))
-
-}
-
-//Что осталось - сохранить то, что передаём в POST в переменную, чтобы потом отдать
-// Мб тут нужно создать мапу: при пост запросе сохраняем длинную ссылку как ключ и значение как короткую
-// При гет запросе по значению маленькой ссылки (значения) выдать длинную (ключ)
-
-//func encrypt - /: POST        curl -v -X POST 'https://practicum.yandex.ru/ '
-//func decrypt - /{id}: GET
